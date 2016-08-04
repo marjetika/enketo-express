@@ -40,12 +40,16 @@ router
     .get( '/_/', offlineWebform )
     .get( '/:enketo_id', webform )
     .get( '/:mod/:enketo_id', webform )
+    .get( '/fs/:enketo_id', fieldSubmissionWebform )
+    .get( '/fs/:mod/:enketo_id', fieldSubmissionWebform )
     .get( '/preview/:enketo_id', preview )
     .get( '/preview/:mod/:enketo_id', preview )
     .get( '/preview', preview )
     .get( '/preview/:mod', preview )
     .get( '/edit/:enketo_id', edit )
     .get( '/edit/:mod/:enketo_id', edit )
+    .get( '/fs/edit/:enketo_id', fieldSubmissionWebform )
+    .get( '/fs/edit/:mod/:enketo_id', fieldSubmissionWebform )
     .get( '/xform/:enketo_id', xform )
     .get( '/connection', function( req, res ) {
         res.status = 200;
@@ -75,6 +79,15 @@ function webform( req, res, next ) {
         manifest: req.manifest,
         // only enable deprecated query string support for online-only forms
         iframe: req.iframe || ( !req.manifest && !!req.query.iframe ),
+    };
+
+    _renderWebform( req, res, next, options );
+}
+
+function fieldSubmissionWebform( req, res, next ) {
+    var options = {
+        type: 'fs',
+        iframe: req.iframe
     };
 
     _renderWebform( req, res, next, options );
