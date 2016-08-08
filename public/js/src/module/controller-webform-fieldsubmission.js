@@ -15,7 +15,7 @@ var $ = require( 'jquery' );
 var utils = require( './utils' );
 var FIELDSUBMISSION_URL = ( settings.enketoId ) ? settings.basePath + '/fieldsubmission/' + settings.enketoIdPrefix + settings.enketoId +
     utils.getQueryString( settings.submissionParameter ) : null;
-var fieldSubmissionQueue = [];
+var fieldSubmissionQueue = {};
 var fieldSubmissionOngoing = false;
 var fieldSubmissionInterval;
 var form;
@@ -171,8 +171,8 @@ function _addToFieldSubmissionQueue( fieldPath, value, instanceId, deprecatedId 
         if ( deprecatedId ) {
             fd.append( 'deprecatedID', deprecatedId );
         }
-        // TODO: check for existance of older field update???
-        fieldSubmissionQueue.push( fd );
+        // Overwrite if older value fieldsubmission in queue.
+        fieldSubmissionQueue[ fieldPath ] = fd;
         console.debug( 'new fieldSubmissionQueue', fieldSubmissionQueue );
     } else {
         console.error( 'Attempt to add field submission without path or instanceID' );
@@ -180,17 +180,39 @@ function _addToFieldSubmissionQueue( fieldPath, value, instanceId, deprecatedId 
 }
 
 function _submitFieldSubmissionQueue() {
-    if ( fieldSubmissionQueue.length && !fieldSubmissionOngoing ) {
-        console.debug( 'submitting queue' );
-        return fieldSubmissionQueue.reduce( function( prevPromise, fieldSubmission ) {
+    var submission;
+    var queue;
+
+    if ( Object.keys( fieldSubmissionQueue ).length > 0 && !fieldSubmissionOngoing ) {
+        // convert fieldSubmission object to array of objects
+        queue = Object.keys( fieldSubmissionQueue ).map( function( key ) {
+            return {
+                name: key,
+                fd: fieldSubmissionQueue[ key ]
+            };
+        } );
+        console.debug( 'queue to submit', queue );
+        // empty the fieldSubmission queue
+        fieldSubmissionQueue = {};
+        return queue.reduce( function( prevPromise, fieldSubmission ) {
                 return prevPromise.then( function() {
-                    return _submitFieldSubmission( fieldSubmission );
+                    return _submitFieldSubmission( fieldSubmission.fd )
+                        .catch( function( error ) {
+                            console.debug( 'failed to submit ', fieldSubmission.name, 'adding it back to the queue, ERROR:', error );
+                            // add back to the fieldSubmission queue if the field value wasn't overwritten in the mean time
+                            if ( typeof fieldSubmissionQueue[ fieldSubmission.name ] === 'undefined' ) {
+                                fieldSubmissionQueue[ fieldSubmission.name ] = fieldSubmission.fd;
+                            }
+                        } );
                 } );
             }, Promise.resolve() )
             .then( function( results ) {
                 console.debug( 'all done with queue submission, results: ', results, ', current queue', fieldSubmissionQueue );
             } )
-            .then( _restartSubmissionInterval );
+            .then( _restartSubmissionInterval )
+            .catch( function( error ) {
+                console.error( 'Unexpected error:', error );
+            } );
     }
 }
 
