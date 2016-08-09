@@ -12,12 +12,8 @@ var Form = require( 'enketo-core' );
 var fileManager = require( './file-manager' );
 var t = require( './translator' ).t;
 var $ = require( 'jquery' );
-var utils = require( './utils' );
-var FIELDSUBMISSION_URL = ( settings.enketoId ) ? settings.basePath + '/fieldsubmission/' + settings.enketoIdPrefix + settings.enketoId +
-    utils.getQueryString( settings.submissionParameter ) : null;
-var fieldSubmissionQueue = {};
-var fieldSubmissionOngoing = false;
-var fieldSubmissionInterval;
+var FieldSubmissionQueue = require( './field-submission-queue' );
+var fieldSubmissionQueue = new FieldSubmissionQueue();
 var form;
 var formSelector;
 var formData;
@@ -158,90 +154,7 @@ function _finish( updated ) {
         */
 }
 
-function _addToFieldSubmissionQueue( fieldPath, value, instanceId, deprecatedId ) {
-    var fd = new FormData();
 
-    if ( fieldPath && instanceId ) {
-        if ( value instanceof Blob ) {
-            fd.append( fieldPath, value, value.name );
-        } else {
-            fd.append( fieldPath, value );
-        }
-        fd.append( 'instanceID', instanceId );
-        if ( deprecatedId ) {
-            fd.append( 'deprecatedID', deprecatedId );
-        }
-        // Overwrite if older value fieldsubmission in queue.
-        fieldSubmissionQueue[ fieldPath ] = fd;
-        console.debug( 'new fieldSubmissionQueue', fieldSubmissionQueue );
-    } else {
-        console.error( 'Attempt to add field submission without path or instanceID' );
-    }
-}
-
-function _submitFieldSubmissionQueue() {
-    var submission;
-    var queue;
-
-    if ( Object.keys( fieldSubmissionQueue ).length > 0 && !fieldSubmissionOngoing ) {
-        // convert fieldSubmission object to array of objects
-        queue = Object.keys( fieldSubmissionQueue ).map( function( key ) {
-            return {
-                name: key,
-                fd: fieldSubmissionQueue[ key ]
-            };
-        } );
-        console.debug( 'queue to submit', queue );
-        // empty the fieldSubmission queue
-        fieldSubmissionQueue = {};
-        return queue.reduce( function( prevPromise, fieldSubmission ) {
-                return prevPromise.then( function() {
-                    return _submitFieldSubmission( fieldSubmission.fd )
-                        .catch( function( error ) {
-                            console.debug( 'failed to submit ', fieldSubmission.name, 'adding it back to the queue, ERROR:', error );
-                            // add back to the fieldSubmission queue if the field value wasn't overwritten in the mean time
-                            if ( typeof fieldSubmissionQueue[ fieldSubmission.name ] === 'undefined' ) {
-                                fieldSubmissionQueue[ fieldSubmission.name ] = fieldSubmission.fd;
-                            }
-                        } );
-                } );
-            }, Promise.resolve() )
-            .then( function( results ) {
-                console.debug( 'all done with queue submission, results: ', results, ', current queue', fieldSubmissionQueue );
-            } )
-            .then( _restartSubmissionInterval )
-            .catch( function( error ) {
-                console.error( 'Unexpected error:', error );
-            } );
-    }
-}
-
-function _submitFieldSubmission( fd ) {
-    return new Promise( function( resolve, reject ) {
-        $.ajax( FIELDSUBMISSION_URL, {
-                type: 'POST',
-                data: fd,
-                cache: false,
-                contentType: false,
-                processData: false,
-                headers: {
-                    'X-OpenClinica-Version': '1.0'
-                },
-                timeout: 3 * 60 * 1000
-            } )
-            .done( function( data, textStatus, jqXHR ) {
-                resolve( jqXHR.status );
-            } )
-            .fail( function() {
-                reject( 'Failed to connect with /fieldsubmission server.' );
-            } );
-    } );
-}
-
-function _restartSubmissionInterval() {
-    console.debug( 'restarting submissionInterval' );
-    fieldSubmissionInterval = setInterval( _submitFieldSubmissionQueue, 1 * 60 * 1000 );
-}
 
 function _setEventHandlers() {
     var $doc = $( document );
@@ -260,8 +173,8 @@ function _setEventHandlers() {
                     .then( function( valid ) {
                         if ( valid ) {
                             if ( !deprecatedId ) {
-                                _addToFieldSubmissionQueue( updated.fullPath, updated.value, instanceId );
-                                _submitFieldSubmissionQueue();
+                                fieldSubmissionQueue.add( updated.fullPath, updated.value, instanceId );
+                                fieldSubmissionQueue.submitAll();
                             } else {
                                 // TODO handle PUT /fieldsubmissionupdates
                             }
