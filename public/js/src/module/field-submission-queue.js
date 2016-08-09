@@ -64,18 +64,20 @@ FieldSubmissionQueue.prototype.submitAll = function() {
                             if ( typeof that.submissionQueue[ fieldSubmission.name ] === 'undefined' ) {
                                 that.submissionQueue[ fieldSubmission.name ] = fieldSubmission.fd;
                             }
+                            return error;
                         } );
                 } );
             }, Promise.resolve() )
-            .then( function( results ) {
-                console.debug( 'all done with queue submission, results: ', results, ', current queue', that.submissionQueue );
+            .then( function( lastResult ) {
+                console.debug( 'all done with queue submission current queue is', that.submissionQueue );
             } )
-            .then( that._resetSubmissionInterval )
             .catch( function( error ) {
-                console.error( 'Unexpected error:', error );
+                console.error( 'Unexpected error:', error.message );
             } )
             .then( function() {
+                that._resetSubmissionInterval();
                 that.submissionOngoing = false;
+                return true;
             } );
     }
 };
@@ -94,16 +96,21 @@ FieldSubmissionQueue.prototype._submitOne = function( fd ) {
                 timeout: 3 * 60 * 1000
             } )
             .done( function( data, textStatus, jqXHR ) {
-                resolve( jqXHR.status );
+                if ( jqXHR.status === 201 || jqXHR.status === 202 ) {
+                    resolve( jqXHR.status );
+                } else {
+                    throw jqXHR;
+                }
             } )
-            .fail( function() {
-                reject( 'Failed to connect with /fieldsubmission server.' );
+            .fail( function( jqXHR ) {
+                reject( new Error( 'Failed to submit to /fieldsubmission server with status: ' + jqXHR.status ) );
             } );
     } );
 };
 
 FieldSubmissionQueue.prototype._resetSubmissionInterval = function() {
-    this.submissionInterval = setInterval( this.submitAll, 1 * 60 * 1000 );
+    var that = this;
+    this.submissionInterval = setInterval( that.submitAll, 1 * 60 * 1000 );
 };
 
 module.exports = FieldSubmissionQueue;
