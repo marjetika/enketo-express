@@ -65,10 +65,7 @@ describe( 'Field Submission', function() {
         };
         var succeedFailSubmitOne = function() {
             i++;
-            if ( i % 2 === 0 ) {
-                return failSubmitOne();
-            }
-            return succeedSubmitOne();
+            return ( i % 2 === 0 ) ? failSubmitOne() : succeedSubmitOne();
         };
 
         beforeEach( function() {
