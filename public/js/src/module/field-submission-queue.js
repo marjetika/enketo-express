@@ -10,6 +10,7 @@ var FIELDSUBMISSION_URL = ( settings.enketoId ) ? settings.basePath + '/fieldsub
 function FieldSubmissionQueue() {
     this.submissionQueue = {};
     this.submissionOngoing = false;
+    this.repeatRemovalCounter = 0;
     //this.submissionInterval;
 }
 
@@ -17,38 +18,64 @@ FieldSubmissionQueue.prototype.get = function() {
     return this.submissionQueue;
 };
 
-FieldSubmissionQueue.prototype.add = function( fieldPath, value, instanceId, deprecatedId ) {
+FieldSubmissionQueue.prototype.addFieldSubmission = function( fieldPath, xmlFragment, instanceId, deprecatedId, file ) {
     var fd = new FormData();
 
-    if ( fieldPath && instanceId ) {
-        if ( value instanceof Blob ) {
-            fd.append( fieldPath, value, value.name );
-        } else {
-            fd.append( fieldPath, value );
+    if ( fieldPath && xmlFragment && instanceId ) {
+
+        fd.append( 'instanceID', instanceId );
+        fd.append( 'xml_submission_fragment_file', xmlFragment );
+
+        if ( file && file instanceof Blob ) {
+            fd.append( file.name, file, file.name );
         }
+
+        if ( deprecatedId ) {
+            fd.append( 'deprecatedID', deprecatedId );
+            // Overwrite if older value fieldsubmission in queue.
+            this.submissionQueue[ 'PUT_' + fieldPath ] = fd;
+        } else {
+            this.submissionQueue[ 'POST_' + fieldPath ] = fd;
+        }
+
+        console.debug( 'new fieldSubmissionQueue', this.submissionQueue );
+    } else {
+        console.error( 'Attempt to add field submission without path, XML fragment or instanceID' );
+    }
+};
+
+FieldSubmissionQueue.prototype.addRepeatRemoval = function( xmlFragment, instanceId, deprecatedId ) {
+    var fd = new FormData();
+    if ( xmlFragment && instanceId ) {
+
+        // TODO: fragment as Blob
+        fd.append( 'xml_submission_fragment_file', xmlFragment );
+
         fd.append( 'instanceID', instanceId );
         if ( deprecatedId ) {
             fd.append( 'deprecatedID', deprecatedId );
         }
         // Overwrite if older value fieldsubmission in queue.
-        this.submissionQueue[ fieldPath ] = fd;
+        this.submissionQueue[ 'DELETE_' + this.repeatRemovalCounter++ ] = fd;
         console.debug( 'new fieldSubmissionQueue', this.submissionQueue );
     } else {
-        console.error( 'Attempt to add field submission without path or instanceID' );
+        console.error( 'Attempt to add repeat removal without XML fragment or instanceID' );
     }
 };
 
 FieldSubmissionQueue.prototype.submitAll = function() {
     var submission;
     var _queue;
+    var method;
     var that = this;
 
-    if ( Object.keys( that.submissionQueue ).length > 0 && !that.submissionOngoing ) {
-        that.submissionOngoing = true;
+    if ( Object.keys( this.submissionQueue ).length > 0 && !this.submissionOngoing ) {
+        this.submissionOngoing = true;
+
         // convert fieldSubmission object to array of objects
         _queue = Object.keys( that.submissionQueue ).map( function( key ) {
             return {
-                name: key,
+                key: key,
                 fd: that.submissionQueue[ key ]
             };
         } );
@@ -57,12 +84,13 @@ FieldSubmissionQueue.prototype.submitAll = function() {
         that.submissionQueue = {};
         return _queue.reduce( function( prevPromise, fieldSubmission ) {
                 return prevPromise.then( function() {
-                    return that._submitOne( fieldSubmission.fd )
+                    method = fieldSubmission.key.split( '_' )[ 0 ];
+                    return that._submitOne( fieldSubmission.fd, method )
                         .catch( function( error ) {
-                            console.debug( 'failed to submit ', fieldSubmission.name, 'adding it back to the queue, ERROR:', error );
+                            console.debug( 'failed to submit ', fieldSubmission.key, 'adding it back to the queue, ERROR:', error );
                             // add back to the fieldSubmission queue if the field value wasn't overwritten in the mean time
-                            if ( typeof that.submissionQueue[ fieldSubmission.name ] === 'undefined' ) {
-                                that.submissionQueue[ fieldSubmission.name ] = fieldSubmission.fd;
+                            if ( typeof that.submissionQueue[ fieldSubmission.key ] === 'undefined' ) {
+                                that.submissionQueue[ fieldSubmission.key ] = fieldSubmission.fd;
                             }
                             return error;
                         } );
@@ -82,10 +110,10 @@ FieldSubmissionQueue.prototype.submitAll = function() {
     }
 };
 
-FieldSubmissionQueue.prototype._submitOne = function( fd ) {
+FieldSubmissionQueue.prototype._submitOne = function( fd, method ) {
     return new Promise( function( resolve, reject ) {
         $.ajax( FIELDSUBMISSION_URL, {
-                type: 'POST',
+                type: method,
                 data: fd,
                 cache: false,
                 contentType: false,
@@ -110,7 +138,10 @@ FieldSubmissionQueue.prototype._submitOne = function( fd ) {
 
 FieldSubmissionQueue.prototype._resetSubmissionInterval = function() {
     var that = this;
-    this.submissionInterval = setInterval( that.submitAll, 1 * 60 * 1000 );
+    clearInterval( this.submissionInterval );
+    this.submissionInterval = setInterval( function() {
+        that.submitAll();
+    }, 1 * 60 * 1000 );
 };
 
 module.exports = FieldSubmissionQueue;

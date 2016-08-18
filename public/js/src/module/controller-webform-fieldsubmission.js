@@ -163,27 +163,39 @@ function _setEventHandlers() {
             if ( $formprogress.length > 0 ) {
                 $formprogress.css( 'width', status + '%' );
             }
-        } )
-        .on( 'fieldchange.enketo', 'form.or', function( event, updated ) {
+        } );
+
+    form.getModel().$
+        .on( 'dataupdate', function( event, updated ) {
             console.debug( 'fieldchange! ', updated );
             var instanceId = form.getInstanceID();
             var deprecatedId = form.getDeprecatedID();
-            if ( updated.fullPath && instanceId ) {
+            if ( updated.cloned ) {
+                return;
+            }
+            if ( !updated.xmlFragment ) {
+                console.error( 'Could not submit field. XML fragment missing.' );
+            }
+            if ( !instanceId ) {
+                console.error( 'Could not submit field. InstanceID missing' );
+            }
+            if ( updated.removed ) {
+                fieldSubmissionQueue.addRepeatRemoval( updated.xmlFragment, instanceId, deprecatedId );
+                fieldSubmissionQueue.submitAll();
+            } else if ( updated.fullPath && typeof updated.valid !== 'undefined' ) {
                 updated.valid
                     .then( function( valid ) {
+                        // TODO: check if field is required and value !empty
                         if ( valid ) {
-                            if ( !deprecatedId ) {
-                                fieldSubmissionQueue.add( updated.fullPath, updated.value, instanceId );
-                                fieldSubmissionQueue.submitAll();
-                            } else {
-                                // TODO handle PUT /fieldsubmissionupdates
-                            }
+                            // TODO: if updated.file, retrieve and add (media) file to upload
+                            fieldSubmissionQueue.addFieldSubmission( updated.fullPath, updated.xmlFragment, instanceId, deprecatedId );
+                            fieldSubmissionQueue.submitAll();
                         } else {
                             console.debug( 'value is not valid, will not submit' );
                         }
                     } );
             } else {
-                console.error( 'Could not submit field. Missing either fullpath or instanceId', updated, instanceId );
+                console.error( 'Could not submit field. Full path or valid promise is missing.' );
             }
         } );
 
