@@ -71,6 +71,7 @@ FieldSubmissionQueue.prototype.submitAll = function() {
 
     if ( Object.keys( this.submissionQueue ).length > 0 && !this.submissionOngoing ) {
         this.submissionOngoing = true;
+        this._uploadStatus.update( 'ongoing' );
 
         // convert fieldSubmission object to array of objects
         _queue = Object.keys( that.submissionQueue ).map( function( key ) {
@@ -105,6 +106,7 @@ FieldSubmissionQueue.prototype.submitAll = function() {
             .then( function() {
                 that._resetSubmissionInterval();
                 that.submissionOngoing = false;
+                that._uploadStatus.update( Object.keys( that.submissionQueue ).length > 0 ? 'error' : 'success' );
                 return true;
             } );
     }
@@ -142,6 +144,38 @@ FieldSubmissionQueue.prototype._resetSubmissionInterval = function() {
     this.submissionInterval = setInterval( function() {
         that.submitAll();
     }, 1 * 60 * 1000 );
+};
+
+
+/**
+ * Shows upload progress
+ *
+ * @type {Object}
+ */
+FieldSubmissionQueue.prototype._uploadStatus = {
+    _getBox: function() {
+        if ( !this._$box ) {
+            // TODO: add to jade template instead
+            this._$box = $( '<div class="fieldsubmission-status"/>' ).prependTo( 'body' );
+        }
+        return this._$box;
+    },
+    _getText: function( status ) {
+        // TODO translate strings
+        return {
+            ongoing: 'Saving...',
+            success: 'All valid changes saved.',
+            error: 'Failed to save changes'
+        }[ status ];
+    },
+    _updateClass: function( status ) {
+        console.debug( 'returning with text', this._getText( status ) );
+        this._getBox().removeClass( 'ongoing success error' ).addClass( status ).text( this._getText( status ) );
+    },
+    update: function( status ) {
+        console.debug( 'updating with', status, this );
+        this._updateClass( status );
+    }
 };
 
 module.exports = FieldSubmissionQueue;
