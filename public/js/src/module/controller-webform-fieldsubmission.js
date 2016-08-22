@@ -167,7 +167,6 @@ function _setEventHandlers() {
 
     form.getModel().$
         .on( 'dataupdate', function( event, updated ) {
-            console.debug( 'fieldchange! ', updated );
             var instanceId = form.getInstanceID();
             var deprecatedId = form.getDeprecatedID();
             if ( updated.cloned ) {
@@ -191,7 +190,7 @@ function _setEventHandlers() {
                             fieldSubmissionQueue.addFieldSubmission( updated.fullPath, updated.xmlFragment, instanceId, deprecatedId );
                             fieldSubmissionQueue.submitAll();
                         } else {
-                            console.debug( 'value is not valid, will not submit' );
+                            console.debug( 'Value is not valid, will not submit' );
                         }
                     } );
             } else {

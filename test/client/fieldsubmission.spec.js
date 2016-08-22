@@ -8,48 +8,63 @@ var FieldSubmissionQueue = require( '../../public/js/src/module/field-submission
 
 chai.use( chaiAsPromised );
 
-var getFormDataFieldValue = function( fieldName, fd ) {
-    return fd.getAll( fieldName );
-};
-
-var getFormDataFields = function( fd ) {
-    var entries = fd.entries();
-    var entry = entries.next();
-    var obj = {};
-
-    while ( !entry.done ) {
-        console.log( 'entry', entry );
-        obj[ entry[ 0 ] ] = entry[ 1 ];
-        entry = entries.next();
-    }
-    return obj;
-};
-
 describe( 'Field Submission', function() {
     var p1 = '/a/b/c';
     var p2 = '/a/r[3]/d';
     var id = 'abc';
+    var did = 'def';
 
     describe( 'queue', function() {
 
-        it( 'adds items', function() {
+        it( 'adds regular items', function() {
             var q = new FieldSubmissionQueue();
-            q.add( p1, '1', id );
-            q.add( p2, 'a', id );
+            q.addFieldSubmission( p1, '1', id );
+            q.addFieldSubmission( p2, 'a', id );
             expect( Object.keys( q.get() ).length ).to.equal( 2 );
-            expect( q.get()[ p1 ] ).to.be.an.instanceOf( FormData );
-            expect( q.get()[ p2 ] ).to.be.an.instanceOf( FormData );
-            expect( q.get()[ p1 ].getAll( p1 ) ).to.deep.equal( [ '1' ] );
-            expect( q.get()[ p2 ].getAll( p2 ) ).to.deep.equal( [ 'a' ] );
+            expect( q.get()[ 'POST_' + p1 ] ).to.be.an.instanceOf( FormData );
+            expect( q.get()[ 'POST_' + p2 ] ).to.be.an.instanceOf( FormData );
+            expect( q.get()[ 'POST_' + p1 ].getAll( 'xml_submission_fragment_file' ) ).to.deep.equal( [ '1' ] );
+            expect( q.get()[ 'POST_' + p2 ].getAll( 'xml_submission_fragment_file' ) ).to.deep.equal( [ 'a' ] );
         } );
 
         it( 'overwrites older values in the queue for the same node', function() {
             var q = new FieldSubmissionQueue();
-            q.add( p1, '1', id );
-            q.add( p1, '2', id );
+            q.addFieldSubmission( p1, '1', id );
+            q.addFieldSubmission( p1, '2', id );
             expect( Object.keys( q.get() ).length ).to.equal( 1 );
-            expect( q.get()[ p1 ] ).to.be.an.instanceOf( FormData );
-            expect( q.get()[ p1 ].getAll( p1 ) ).to.deep.equal( [ '2' ] );
+            expect( q.get()[ 'POST_' + p1 ] ).to.be.an.instanceOf( FormData );
+            expect( q.get()[ 'POST_' + p1 ].getAll( 'xml_submission_fragment_file' ) ).to.deep.equal( [ '2' ] );
+        } );
+
+        it( 'adds edits of already submitted items', function() {
+            var q = new FieldSubmissionQueue();
+            q.addFieldSubmission( p1, '1', id, did );
+            q.addFieldSubmission( p2, 'a', id, did );
+            expect( Object.keys( q.get() ).length ).to.equal( 2 );
+            expect( q.get()[ 'PUT_' + p1 ] ).to.be.an.instanceOf( FormData );
+            expect( q.get()[ 'PUT_' + p2 ] ).to.be.an.instanceOf( FormData );
+            expect( q.get()[ 'PUT_' + p1 ].getAll( 'xml_submission_fragment_file' ) ).to.deep.equal( [ '1' ] );
+            expect( q.get()[ 'PUT_' + p2 ].getAll( 'xml_submission_fragment_file' ) ).to.deep.equal( [ 'a' ] );
+        } );
+
+        it( 'overwrites older values of edited already-submitted items', function() {
+            var q = new FieldSubmissionQueue();
+            q.addFieldSubmission( p1, '1', id, did );
+            q.addFieldSubmission( p1, '2', id, did );
+            expect( Object.keys( q.get() ).length ).to.equal( 1 );
+            expect( q.get()[ 'PUT_' + p1 ] ).to.be.an.instanceOf( FormData );
+            expect( q.get()[ 'PUT_' + p1 ].getAll( 'xml_submission_fragment_file' ) ).to.deep.equal( [ '2' ] );
+        } );
+
+        it( 'adds items that delete a repeat', function() {
+            var q = new FieldSubmissionQueue();
+            q.addRepeatRemoval( '1', id );
+            q.addRepeatRemoval( 'a', id, did );
+            expect( Object.keys( q.get() ).length ).to.equal( 2 );
+            expect( q.get()[ 'DELETE_0' ] ).to.be.an.instanceOf( FormData );
+            expect( q.get()[ 'DELETE_1' ] ).to.be.an.instanceOf( FormData );
+            expect( q.get()[ 'DELETE_0' ].getAll( 'xml_submission_fragment_file' ) ).to.deep.equal( [ '1' ] );
+            expect( q.get()[ 'DELETE_1' ].getAll( 'xml_submission_fragment_file' ) ).to.deep.equal( [ 'a' ] );
         } );
 
     } );
@@ -71,8 +86,8 @@ describe( 'Field Submission', function() {
         beforeEach( function() {
             i = 0;
             q = new FieldSubmissionQueue();
-            q.add( p1, '1', id );
-            q.add( p2, 'a', id );
+            q.addFieldSubmission( p1, '1', id );
+            q.addFieldSubmission( p2, 'a', id );
         } );
 
         it( 'removes a queue item if submission was successful', function() {
@@ -92,7 +107,7 @@ describe( 'Field Submission', function() {
                 .then( function( results ) {
                     return Object.keys( q.get() );
                 } );
-            return expect( updatedQueueKeys ).to.eventually.deep.equal( [ p1, p2 ] );
+            return expect( updatedQueueKeys ).to.eventually.deep.equal( [ 'POST_' + p1, 'POST_' + p2 ] );
         } );
 
         it( 'retains a queue item if submission failed', function() {
@@ -102,7 +117,7 @@ describe( 'Field Submission', function() {
                 .then( function( results ) {
                     return Object.keys( q.get() );
                 } );
-            return expect( updatedQueueKeys ).to.eventually.deep.equal( [ p2 ] );
+            return expect( updatedQueueKeys ).to.eventually.deep.equal( [ 'POST_' + p2 ] );
         } );
 
         it( 'if a field is updated during a failing submission attempt, ' +
@@ -115,13 +130,13 @@ describe( 'Field Submission', function() {
                         return q.get();
                     } );
                 // this will complete before updatedQueueKeys is resolved!
-                q.add( p2, 'b', id );
+                q.addFieldSubmission( p2, 'b', id );
 
                 return Promise.all( [
-                    expect( updatedQueue ).to.eventually.have.property( p2 ).and.satisfy( function( fd ) {
-                        return fd.getAll( p2 ).toString() === [ 'b' ].toString();
+                    expect( updatedQueue ).to.eventually.have.property( 'POST_' + p2 ).and.satisfy( function( fd ) {
+                        return fd.getAll( 'xml_submission_fragment_file' ).toString() === [ 'b' ].toString();
                     } ),
-                    expect( updatedQueue ).to.eventually.not.have.property( p1 )
+                    expect( updatedQueue ).to.eventually.not.have.property( 'POST_' + p1 )
                 ] );
             } );
     } );

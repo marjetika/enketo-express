@@ -11,7 +11,6 @@ function FieldSubmissionQueue() {
     this.submissionQueue = {};
     this.submissionOngoing = false;
     this.repeatRemovalCounter = 0;
-    //this.submissionInterval;
 }
 
 FieldSubmissionQueue.prototype.get = function() {
@@ -146,7 +145,6 @@ FieldSubmissionQueue.prototype._resetSubmissionInterval = function() {
     }, 1 * 60 * 1000 );
 };
 
-
 /**
  * Shows upload progress
  *
@@ -155,7 +153,6 @@ FieldSubmissionQueue.prototype._resetSubmissionInterval = function() {
 FieldSubmissionQueue.prototype._uploadStatus = {
     _getBox: function() {
         if ( !this._$box ) {
-            // TODO: add to jade template instead
             this._$box = $( '<div class="fieldsubmission-status"/>' ).prependTo( 'body' );
         }
         return this._$box;
@@ -169,11 +166,9 @@ FieldSubmissionQueue.prototype._uploadStatus = {
         }[ status ];
     },
     _updateClass: function( status ) {
-        console.debug( 'returning with text', this._getText( status ) );
         this._getBox().removeClass( 'ongoing success error' ).addClass( status ).text( this._getText( status ) );
     },
     update: function( status ) {
-        console.debug( 'updating with', status, this );
         this._updateClass( status );
     }
 };
