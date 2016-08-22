@@ -17,13 +17,16 @@ FieldSubmissionQueue.prototype.get = function() {
     return this.submissionQueue;
 };
 
+
 FieldSubmissionQueue.prototype.addFieldSubmission = function( fieldPath, xmlFragment, instanceId, deprecatedId, file ) {
     var fd = new FormData();
 
     if ( fieldPath && xmlFragment && instanceId ) {
 
         fd.append( 'instanceID', instanceId );
-        fd.append( 'xml_submission_fragment_file', xmlFragment );
+        fd.append( 'xml_submission_fragment_file', new Blob( [ xmlFragment ], {
+            type: 'text/xml'
+        } ), 'xml_submission_fragment_file.xml' );
 
         if ( file && file instanceof Blob ) {
             fd.append( file.name, file, file.name );
@@ -48,7 +51,9 @@ FieldSubmissionQueue.prototype.addRepeatRemoval = function( xmlFragment, instanc
     if ( xmlFragment && instanceId ) {
 
         // TODO: fragment as Blob
-        fd.append( 'xml_submission_fragment_file', xmlFragment );
+        fd.append( 'xml_submission_fragment_file', new Blob( [ xmlFragment ], {
+            type: 'text/xml'
+        } ), 'xml_submission_fragment_file.xml' );
 
         fd.append( 'instanceID', instanceId );
         if ( deprecatedId ) {
