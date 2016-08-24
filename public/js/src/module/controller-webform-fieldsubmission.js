@@ -169,6 +169,8 @@ function _setEventHandlers() {
         .on( 'dataupdate.enketo', function( event, updated ) {
             var instanceId = form.getInstanceID();
             var deprecatedId = form.getDeprecatedID();
+            var file;
+
             if ( updated.cloned ) {
                 return;
             }
@@ -190,8 +192,11 @@ function _setEventHandlers() {
                     } )
                     .then( function( passed ) {
                         if ( passed ) {
-                            // TODO: if updated.file, retrieve and add (media) file to upload
-                            fieldSubmissionQueue.addFieldSubmission( updated.fullPath, updated.xmlFragment, instanceId, deprecatedId );
+                            if ( updated.file ) {
+                                file = fileManager.getCurrentFile( updated.file );
+                                console.debug( 'found file', file );
+                            }
+                            fieldSubmissionQueue.addFieldSubmission( updated.fullPath, updated.xmlFragment, instanceId, deprecatedId, file );
                             fieldSubmissionQueue.submitAll();
                         } else {
                             console.debug( 'Value fails required and/or validation check. It will not submit' );
