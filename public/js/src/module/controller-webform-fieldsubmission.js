@@ -165,8 +165,8 @@ function _setEventHandlers() {
             }
         } );
 
-    form.getView().$
-        .on( 'dataupdate.enketo', function( event, updated ) {
+    form.getModel().$
+        .on( 'dataupdate', function( event, updated ) {
             var instanceId = form.getInstanceID();
             var deprecatedId = form.getDeprecatedID();
             var file;
