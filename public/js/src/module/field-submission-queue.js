@@ -4,6 +4,7 @@ var settings = require( './settings' );
 var t = require( './translator' ).t;
 var utils = require( './utils' );
 var $ = require( 'jquery' );
+var gui = require( './gui' );
 var FIELDSUBMISSION_URL = ( settings.enketoId ) ? settings.basePath + '/fieldsubmission/' + settings.enketoIdPrefix + settings.enketoId +
     utils.getQueryString( settings.submissionParameter ) : null;
 
@@ -72,6 +73,7 @@ FieldSubmissionQueue.prototype.submitAll = function() {
     var _queue;
     var method;
     var that = this;
+    var authRequired;
 
     if ( Object.keys( this.submissionQueue ).length > 0 && !this.submissionOngoing ) {
         this.submissionOngoing = true;
@@ -97,12 +99,18 @@ FieldSubmissionQueue.prototype.submitAll = function() {
                             if ( typeof that.submissionQueue[ fieldSubmission.key ] === 'undefined' ) {
                                 that.submissionQueue[ fieldSubmission.key ] = fieldSubmission.fd;
                             }
+                            if ( error.status === 401 ) {
+                                authRequired = true;
+                            }
                             return error;
                         } );
                 } );
             }, Promise.resolve() )
             .then( function( lastResult ) {
                 console.debug( 'all done with queue submission current queue is', that.submissionQueue );
+                if ( authRequired ) {
+                    gui.confirmLogin();
+                }
             } )
             .catch( function( error ) {
                 console.error( 'Unexpected error:', error.message );
@@ -117,6 +125,8 @@ FieldSubmissionQueue.prototype.submitAll = function() {
 };
 
 FieldSubmissionQueue.prototype._submitOne = function( fd, method ) {
+    var error;
+
     return new Promise( function( resolve, reject ) {
         $.ajax( FIELDSUBMISSION_URL, {
                 type: method,
@@ -137,7 +147,9 @@ FieldSubmissionQueue.prototype._submitOne = function( fd, method ) {
                 }
             } )
             .fail( function( jqXHR ) {
-                reject( new Error( 'Failed to submit to /fieldsubmission server with status: ' + jqXHR.status ) );
+                error = new Error( jqXHR.statusText );
+                error.status = jqXHR.status;
+                reject( error );
             } );
     } );
 };
