@@ -165,8 +165,8 @@ function _setEventHandlers() {
             }
         } );
 
-    form.getModel().$
-        .on( 'dataupdate', function( event, updated ) {
+    form.getView().$
+        .on( 'dataupdate.enketo', function( event, updated ) {
             var instanceId = form.getInstanceID();
             var deprecatedId = form.getDeprecatedID();
             if ( updated.cloned ) {
@@ -181,20 +181,24 @@ function _setEventHandlers() {
             if ( updated.removed ) {
                 fieldSubmissionQueue.addRepeatRemoval( updated.xmlFragment, instanceId, deprecatedId );
                 fieldSubmissionQueue.submitAll();
-            } else if ( updated.fullPath && typeof updated.valid !== 'undefined' ) {
-                updated.valid
-                    .then( function( valid ) {
-                        // TODO: check if field is required and value !empty
-                        if ( valid ) {
+            } else if ( updated.fullPath && typeof updated.validCheck !== 'undefined' && updated.requiredCheck !== 'undefined' ) {
+                updated.requiredCheck
+                    .then( function( passed ) {
+                        if ( passed ) {
+                            return updated.validCheck;
+                        }
+                    } )
+                    .then( function( passed ) {
+                        if ( passed ) {
                             // TODO: if updated.file, retrieve and add (media) file to upload
                             fieldSubmissionQueue.addFieldSubmission( updated.fullPath, updated.xmlFragment, instanceId, deprecatedId );
                             fieldSubmissionQueue.submitAll();
                         } else {
-                            console.debug( 'Value is not valid, will not submit' );
+                            console.debug( 'Value fails required and/or validation check. It will not submit' );
                         }
                     } );
             } else {
-                console.error( 'Could not submit field. Full path or valid promise is missing.' );
+                console.error( 'Could not submit field. Full path or validation checks are missing.' );
             }
         } );
 
