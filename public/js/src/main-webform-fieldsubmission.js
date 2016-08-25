@@ -15,7 +15,7 @@ var t = translator.t;
 var utils = require( './module/utils' );
 var $loader = $( '.form__loader' );
 var $form = $( 'form.or' );
-var $buttons = $( '.form-header__button--print, button#submit-form' ); //TODO: ADD FIELDSUBMISSION BUTTONS
+var $buttons = $( '.form-header__button--print, button#close-form, button#finish-form' );
 var survey = {
     enketoId: settings.enketoId,
     serverUrl: settings.serverUrl,
@@ -33,8 +33,8 @@ translator.init( survey )
                 .then( function( instance ) {
                     formParts.instance = instance;
                     return formParts;
-                } )
-                // TODO: when loading /fs/edit for /fs/edit/i WITHOUT an instanceId, an error should be thrown
+                } );
+            // TODO: when loading /fs/edit for /fs/edit/i WITHOUT an instanceId, an error should be thrown
         } else {
             return formParts;
         }

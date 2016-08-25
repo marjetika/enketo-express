@@ -60,6 +60,7 @@ FieldSubmissionQueue.prototype.addRepeatRemoval = function( xmlFragment, instanc
         if ( deprecatedId ) {
             fd.append( 'deprecatedID', deprecatedId );
         }
+
         // Overwrite if older value fieldsubmission in queue.
         this.submissionQueue[ 'DELETE_' + this.repeatRemovalCounter++ ] = fd;
         console.debug( 'new fieldSubmissionQueue', this.submissionQueue );
@@ -69,6 +70,25 @@ FieldSubmissionQueue.prototype.addRepeatRemoval = function( xmlFragment, instanc
 };
 
 FieldSubmissionQueue.prototype.submitAll = function() {
+    var that = this;
+    if ( this.ongoingSubmissions ) {
+        console.debug( 'returning existing ongoing submissions promise' );
+        return this.ongoingSubmissions;
+    } else {
+        console.debug( 'returning new submissiongs promise' );
+        this.ongoingSubmissions = this._submitAll()
+
+        this.ongoingSubmissions
+            .then( function() {
+                console.debug( 'setting ongoing submissions to undefined' );
+                that.ongoingSubmissions = undefined;
+            } );
+
+        return this.ongoingSubmissions;
+    }
+};
+
+FieldSubmissionQueue.prototype._submitAll = function() {
     var submission;
     var _queue;
     var method;
@@ -86,9 +106,11 @@ FieldSubmissionQueue.prototype.submitAll = function() {
                 fd: that.submissionQueue[ key ]
             };
         } );
-        console.debug( 'queue to submit', _queue );
+
         // empty the fieldSubmission queue
         that.submissionQueue = {};
+
+        // submit sequentially
         return _queue.reduce( function( prevPromise, fieldSubmission ) {
                 return prevPromise.then( function() {
                     method = fieldSubmission.key.split( '_' )[ 0 ];
@@ -107,7 +129,7 @@ FieldSubmissionQueue.prototype.submitAll = function() {
                 } );
             }, Promise.resolve() )
             .then( function( lastResult ) {
-                console.debug( 'all done with queue submission current queue is', that.submissionQueue );
+                console.debug( 'all done with queue submission current remaining queue is', that.submissionQueue );
                 if ( authRequired ) {
                     gui.confirmLogin();
                 }
@@ -117,11 +139,11 @@ FieldSubmissionQueue.prototype.submitAll = function() {
             } )
             .then( function() {
                 that._resetSubmissionInterval();
-                that.submissionOngoing = false;
                 that._uploadStatus.update( Object.keys( that.submissionQueue ).length > 0 ? 'error' : 'success' );
                 return true;
             } );
     }
+    return Promise.resolve();
 };
 
 FieldSubmissionQueue.prototype._submitOne = function( fd, method ) {
@@ -152,6 +174,18 @@ FieldSubmissionQueue.prototype._submitOne = function( fd, method ) {
                 reject( error );
             } );
     } );
+};
+
+FieldSubmissionQueue.prototype.complete = function() {
+    var error;
+
+    if ( Object.keys( this.fieldSubmissionQueue ).length === 0 ) {
+        return Promise.resolve( true );
+    } else {
+        error = new Error( 'Attempt to make a "complete" request when queue is not empty' );
+        console.error( error );
+        return Promise.reject( error );
+    }
 };
 
 FieldSubmissionQueue.prototype._resetSubmissionInterval = function() {
