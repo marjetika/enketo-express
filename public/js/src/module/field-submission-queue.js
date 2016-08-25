@@ -7,10 +7,11 @@ var $ = require( 'jquery' );
 var gui = require( './gui' );
 var FIELDSUBMISSION_URL = ( settings.enketoId ) ? settings.basePath + '/fieldsubmission/' + settings.enketoIdPrefix + settings.enketoId +
     utils.getQueryString( settings.submissionParameter ) : null;
+var FIELDSUBMISSION_COMPLETE_URL = ( settings.enketoId ) ? settings.basePath + '/fieldsubmission/complete/' + settings.enketoIdPrefix + settings.enketoId +
+    utils.getQueryString( settings.submissionParameter ) : null;
 
 function FieldSubmissionQueue() {
     this.submissionQueue = {};
-    this.submissionOngoing = false;
     this.repeatRemovalCounter = 0;
 }
 
@@ -73,19 +74,22 @@ FieldSubmissionQueue.prototype.submitAll = function() {
     var that = this;
     if ( this.ongoingSubmissions ) {
         console.debug( 'returning existing ongoing submissions promise' );
-        return this.ongoingSubmissions;
+        this.ongoingSubmissions = this.ongoingSubmissions
+            .then( function() {
+                return that._submitAll();
+            } );
     } else {
         console.debug( 'returning new submissiongs promise' );
-        this.ongoingSubmissions = this._submitAll()
-
-        this.ongoingSubmissions
-            .then( function() {
-                console.debug( 'setting ongoing submissions to undefined' );
-                that.ongoingSubmissions = undefined;
-            } );
-
-        return this.ongoingSubmissions;
+        this.ongoingSubmissions = this._submitAll();
     }
+
+    this.ongoingSubmissions
+        .then( function() {
+            console.debug( 'setting ongoing submissions to undefined' );
+            that.ongoingSubmissions = undefined;
+        } );
+
+    return this.ongoingSubmissions;
 };
 
 FieldSubmissionQueue.prototype._submitAll = function() {
@@ -95,8 +99,8 @@ FieldSubmissionQueue.prototype._submitAll = function() {
     var that = this;
     var authRequired;
 
-    if ( Object.keys( this.submissionQueue ).length > 0 && !this.submissionOngoing ) {
-        this.submissionOngoing = true;
+    if ( Object.keys( this.submissionQueue ).length > 0 ) {
+
         this._uploadStatus.update( 'ongoing' );
 
         // convert fieldSubmission object to array of objects
@@ -114,7 +118,7 @@ FieldSubmissionQueue.prototype._submitAll = function() {
         return _queue.reduce( function( prevPromise, fieldSubmission ) {
                 return prevPromise.then( function() {
                     method = fieldSubmission.key.split( '_' )[ 0 ];
-                    return that._submitOne( fieldSubmission.fd, method )
+                    return that._submitOne( FIELDSUBMISSION_URL, fieldSubmission.fd, method )
                         .catch( function( error ) {
                             console.debug( 'failed to submit ', fieldSubmission.key, 'adding it back to the queue, ERROR:', error );
                             // add back to the fieldSubmission queue if the field value wasn't overwritten in the mean time
@@ -146,11 +150,11 @@ FieldSubmissionQueue.prototype._submitAll = function() {
     return Promise.resolve();
 };
 
-FieldSubmissionQueue.prototype._submitOne = function( fd, method ) {
+FieldSubmissionQueue.prototype._submitOne = function( url, fd, method ) {
     var error;
 
     return new Promise( function( resolve, reject ) {
-        $.ajax( FIELDSUBMISSION_URL, {
+        $.ajax( url, {
                 type: method,
                 data: fd,
                 cache: false,
@@ -176,13 +180,25 @@ FieldSubmissionQueue.prototype._submitOne = function( fd, method ) {
     } );
 };
 
-FieldSubmissionQueue.prototype.complete = function() {
+FieldSubmissionQueue.prototype.complete = function( instanceId, deprecatedId ) {
     var error;
+    var method = 'POST';
 
-    if ( Object.keys( this.fieldSubmissionQueue ).length === 0 ) {
-        return Promise.resolve( true );
+    if ( Object.keys( this.submissionQueue ).length === 0 && instanceId ) {
+        var fd = new FormData();
+        fd.append( 'instanceID', instanceId );
+
+        if ( deprecatedId ) {
+            fd.append( 'deprecatedID', deprecatedId );
+            method = 'PUT';
+        }
+
+        return this._submitOne( FIELDSUBMISSION_COMPLETE_URL, fd, method )
+            .then( function() {
+                return true;
+            } );
     } else {
-        error = new Error( 'Attempt to make a "complete" request when queue is not empty' );
+        error = new Error( 'Attempt to make a "complete" request when queue is not empty or instanceId is missing', this.submissionQueue, instanceId );
         console.error( error );
         return Promise.reject( error );
     }

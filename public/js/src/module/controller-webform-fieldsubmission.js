@@ -108,6 +108,8 @@ function _complete( updated ) {
     var beforeMsg;
     var authLink;
     var level;
+    var instanceId;
+    var deprecatedId;
     var msg = [];
 
     form.getView().$.trigger( 'beforesave' );
@@ -118,20 +120,8 @@ function _complete( updated ) {
     gui.alert( beforeMsg + '<br />' +
         '<div class="loader-animation-small" style="margin: 10px auto 0 auto;"/>', t( 'alert.submission.msg' ), 'bare' );
 
-
-    // 1 store ongoing calls to submitAll as a variable?
-    // 2. wait until promise completes
-    // 3. check queue length
-    // 4. if length = 0 -> send special 'finish' request
-    // 5. if length > 0 -> ?
-
-    //if ( Object.keys( fieldSubmissionQueue.get() ).length === 0 && !fieldSubmissionQueue.submissionOngoing ) {
-    // all is good
-    //}
-
     return Promise.all( ongoingUpdates )
         .then( function() {
-            console.debug( 'all ongoing updates complete' );
             ongoingUpdates = [];
             return fieldSubmissionQueue.submitAll();
         } )
@@ -140,7 +130,9 @@ function _complete( updated ) {
             console.debug( 'result: ', queueLength );
 
             if ( queueLength === 0 ) {
-                return fieldSubmissionQueue.complete();
+                instanceId = form.getInstanceID();
+                deprecatedId = form.getDeprecatedID();
+                return fieldSubmissionQueue.complete( instanceId, deprecatedId );
             } else {
                 return false;
             }

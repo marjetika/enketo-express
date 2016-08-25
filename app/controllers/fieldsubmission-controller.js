@@ -31,13 +31,23 @@ router
         next();
     } )
     .post( '/:enketo_id', submit )
+    .post( '/complete/:enketo_id', complete )
     .put( '/:enketo_id', submit )
+    .put( '/complete/:enketo_id', complete )
     .delete( '/:enketo_id', submit )
     .all( '/*', function( req, res, next ) {
         var error = new Error( 'Not allowed' );
         error.status = 405;
         next( error );
     } );
+
+function complete( req, res, next ) {
+    _request( 'field', req, res, next );
+}
+
+function submit( req, res, next ) {
+    _request( 'complete', req, res, next );
+}
 
 /** 
  * Simply pipes well-formed request to the OpenRosa server and
@@ -48,10 +58,10 @@ router
  * @param  {Function} next [description]
  * @return {[type]}        [description]
  */
-function submit( req, res, next ) {
-    var submissionUrl;
+function _request( type, req, res, next ) {
     var credentials;
     var options;
+    var url;
     var paramName = req.app.get( 'query parameter to pass to submission' );
     var paramValue = req.query[ paramName ];
     var query = ( paramValue ) ? '?' + paramName + '=' + paramValue : '';
@@ -63,7 +73,7 @@ function submit( req, res, next ) {
 
     surveyModel.get( id )
         .then( function( survey ) {
-            submissionUrl = _getSubmissionUrl( survey.openRosaServer ) + query;
+            url = (type==='complete') ?_getSubmissionCompleteUrl( survey.openRosaServer ) + query : _getSubmissionUrl( survey.openRosaServer ) + query; 
             credentials = userModel.getCredentials( req );
 
             // first check if authentication is required and if so get the Basic or Digest Authorization header
