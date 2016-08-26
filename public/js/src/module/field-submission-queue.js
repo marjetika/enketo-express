@@ -42,7 +42,6 @@ FieldSubmissionQueue.prototype.addFieldSubmission = function( fieldPath, xmlFrag
             this.submissionQueue[ 'POST_' + fieldPath ] = fd;
         }
 
-        console.debug( 'new fieldSubmissionQueue', this.submissionQueue );
     } else {
         console.error( 'Attempt to add field submission without path, XML fragment or instanceID' );
     }
@@ -64,7 +63,6 @@ FieldSubmissionQueue.prototype.addRepeatRemoval = function( xmlFragment, instanc
 
         // Overwrite if older value fieldsubmission in queue.
         this.submissionQueue[ 'DELETE_' + this.repeatRemovalCounter++ ] = fd;
-        console.debug( 'new fieldSubmissionQueue', this.submissionQueue );
     } else {
         console.error( 'Attempt to add repeat removal without XML fragment or instanceID' );
     }
@@ -73,19 +71,16 @@ FieldSubmissionQueue.prototype.addRepeatRemoval = function( xmlFragment, instanc
 FieldSubmissionQueue.prototype.submitAll = function() {
     var that = this;
     if ( this.ongoingSubmissions ) {
-        console.debug( 'returning existing ongoing submissions promise' );
         this.ongoingSubmissions = this.ongoingSubmissions
             .then( function() {
                 return that._submitAll();
             } );
     } else {
-        console.debug( 'returning new submissiongs promise' );
         this.ongoingSubmissions = this._submitAll();
     }
 
     this.ongoingSubmissions
         .then( function() {
-            console.debug( 'setting ongoing submissions to undefined' );
             that.ongoingSubmissions = undefined;
         } );
 
@@ -133,7 +128,7 @@ FieldSubmissionQueue.prototype._submitAll = function() {
                 } );
             }, Promise.resolve() )
             .then( function( lastResult ) {
-                console.debug( 'all done with queue submission current remaining queue is', that.submissionQueue );
+                console.log( 'All done with queue submission. Current remaining queue is', that.submissionQueue );
                 if ( authRequired ) {
                     gui.confirmLogin();
                 }

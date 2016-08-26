@@ -14,6 +14,7 @@ var t = require( './translator' ).t;
 var $ = require( 'jquery' );
 var FieldSubmissionQueue = require( './field-submission-queue' );
 var fieldSubmissionQueue = new FieldSubmissionQueue();
+var rc = require( './controller-webform' );
 var ongoingUpdates = [];
 var form;
 var formSelector;
@@ -42,7 +43,7 @@ function init( selector, data ) {
                 loadErrors.unshift( '<strong>' + t( 'error.encryptionnotsupported' ) + '</strong>' );
             }
 
-            _setLogoutLinkVisibility();
+            rc.setLogoutLinkVisibility();
 
             if ( loadErrors.length > 0 ) {
                 throw loadErrors;
@@ -91,34 +92,57 @@ function _resetForm( confirmed ) {
 }
 
 function _close() {
-    if ( Object.keys( fieldSubmissionQueue.get() ).length > 0 ) {
-        console.log( 'There are unsubmitted items in the queue!' );
-        gui.alert( 'Not all data has been submitted. If you continue this will be lost.', 'Warning', 'warning' );
-        return 'Any unsaved data will be lost';
-        // TODO: may need to return promise here.
-    }
+    var redirect = !settings.offline && settings.returnUrl;
+    var msg = '';
+    var tAlertCloseMsg = 'Submitting unsaved data...';
+    var tAlertCloseHeading = 'Closing';
+
+    gui.alert( tAlertCloseMsg + '<br/>' +
+        '<div class="loader-animation-small" style="margin: 40px auto 0 auto;"/>', tAlertCloseHeading, 'bare' );
+
+    return Promise.all( ongoingUpdates )
+        .then( function() {
+            ongoingUpdates = [];
+            return fieldSubmissionQueue.submitAll();
+        } )
+        .then( function() {
+            if ( Object.keys( fieldSubmissionQueue.get() ).length > 0 ) {
+                console.log( 'There are unsubmitted items in the queue!' );
+                gui.alert( 'Not all data has been submitted. If you continue this will be lost.', 'Warning', 'error' );
+            } else {
+                if ( redirect ) {
+                    msg += t( 'alert.submissionsuccess.redirectmsg' );
+                    gui.alert( msg, t( 'alert.submissionsuccess.heading' ), 'success' );
+                    setTimeout( function() {
+                        location.href = decodeURIComponent( settings.returnUrl );
+                    }, 1000 );
+                } else {
+                    msg = ( msg.length > 0 ) ? msg : t( 'alert.submissionsuccess.msg' );
+                    gui.alert( msg, t( 'alert.submissionsuccess.heading' ), 'success' );
+                    _resetForm( true );
+                }
+            }
+        } );
 }
 
 /**
  * Finishes a submission
  */
 function _complete( updated ) {
-    //var record;
-    var redirect;
+    var redirect = !settings.offline && settings.returnUrl;
     var beforeMsg;
     var authLink;
-    var level;
     var instanceId;
     var deprecatedId;
-    var msg = [];
+    var msg = '';
 
     form.getView().$.trigger( 'beforesave' );
 
     beforeMsg = ( redirect ) ? t( 'alert.submission.redirectmsg' ) : '';
     authLink = '<a href="/login" target="_blank">' + t( 'here' ) + '</a>';
 
-    gui.alert( beforeMsg + '<br />' +
-        '<div class="loader-animation-small" style="margin: 10px auto 0 auto;"/>', t( 'alert.submission.msg' ), 'bare' );
+    gui.alert( beforeMsg +
+        '<div class="loader-animation-small" style="margin: 40px auto 0 auto;"/>', t( 'alert.submission.msg' ), 'bare' );
 
     return Promise.all( ongoingUpdates )
         .then( function() {
@@ -127,7 +151,6 @@ function _complete( updated ) {
         } )
         .then( function() {
             var queueLength = Object.keys( fieldSubmissionQueue.get() ).length;
-            console.debug( 'result: ', queueLength );
 
             if ( queueLength === 0 ) {
                 instanceId = form.getInstanceID();
@@ -139,55 +162,36 @@ function _complete( updated ) {
         } )
         .then( function( result ) {
             if ( result === true ) {
-                gui.alert( 'Whoohooeeeee', 'Yay', 'success' );
                 // this event is used in communicating back to iframe parent window
                 $( document ).trigger( 'submissionsuccess' );
+
+                if ( redirect ) {
+                    msg += t( 'alert.submissionsuccess.redirectmsg' );
+                    gui.alert( msg, t( 'alert.submissionsuccess.heading' ), 'success' );
+                    setTimeout( function() {
+                        location.href = decodeURIComponent( settings.returnUrl );
+                    }, 1500 );
+                } else {
+                    msg = ( msg.length > 0 ) ? msg : t( 'alert.submissionsuccess.msg' );
+                    gui.alert( msg, t( 'alert.submissionsuccess.heading' ), 'success' );
+                    _resetForm( true );
+                }
             } else {
-                console.error( 'not good', result );
-                gui.alert( 'Something terrible happened.', 'Ugh', 'error' );
+                throw new Error( 'Failed to submit.' );
             }
-
-            /*
-            result = result || {};
-            level = 'success';
-
-            if ( result.failedFiles && result.failedFiles.length > 0 ) {
-                msg = [ t( 'alert.submissionerror.fnfmsg', {
-                    failedFiles: result.failedFiles.join( ', ' ),
-                    supportEmail: settings.supportEmail
-                } ) ];
-                level = 'warning';
-            }*/
-
-
-            /*
-            if ( settings.returnUrl ) {
-                msg += '<br/>' + t( 'alert.submissionsuccess.redirectmsg' );
-                gui.alert( msg, t( 'alert.submissionsuccess.heading' ), level );
-                setTimeout( function() {
-                    location.href = decodeURIComponent( settings.returnUrl );
-                }, 1500 );
-            } else {
-                msg = ( msg.length > 0 ) ? msg : t( 'alert.submissionsuccess.msg' );
-                gui.alert( msg, t( 'alert.submissionsuccess.heading' ), level );
-                //_resetForm( true );
-            }
-            */
         } )
         .catch( function( result ) {
-            var message;
             result = result || {};
             console.error( 'submission failed', result );
             if ( result.status === 401 ) {
-                message = t( 'alert.submissionerror.authrequiredmsg', {
+                msg = t( 'alert.submissionerror.authrequiredmsg', {
                     here: authLink
                 } );
             } else {
-                message = result.message || gui.getErrorResponseMsg( result.status );
+                msg = result.message || gui.getErrorResponseMsg( result.status );
             }
-            gui.alert( message, t( 'alert.submissionerror.heading' ) );
+            gui.alert( msg, t( 'alert.submissionerror.heading' ) );
         } );
-
 }
 
 function _setEventHandlers( selector ) {
@@ -276,46 +280,15 @@ function _setEventHandlers( selector ) {
         return false;
     } );
 
-    if ( _inIframe() && settings.parentWindowOrigin ) {
-        //$doc.on( 'submissionsuccess edited.enketo', _postEventAsMessageToParentWindow );
+    if ( rc.inIframe() && settings.parentWindowOrigin ) {
+        $doc.on( 'submissionsuccess edited.enketo', rc.postEventAsMessageToParentWindow );
     }
 
-    window.onbeforeunload = _close;
-}
-
-function _setLogoutLinkVisibility() {
-    var visible = document.cookie.split( '; ' ).some( function( rawCookie ) {
-        return rawCookie.indexOf( '__enketo_logout=' ) !== -1;
-    } );
-    $( '.form-footer .logout' ).toggleClass( 'hide', !visible );
-}
-
-/** 
- * Determines whether the page is loaded inside an iframe
- * @return {boolean} [description]
- */
-function _inIframe() {
-    try {
-        return window.self !== window.top;
-    } catch ( e ) {
-        return true;
-    }
-}
-
-/**
- * Attempts to send a message to the parent window, useful if the webform is loaded inside an iframe.
- * @param  {{type: string}} event
- */
-function _postEventAsMessageToParentWindow( event ) {
-    if ( event && event.type ) {
-        try {
-            window.parent.postMessage( JSON.stringify( {
-                enketoEvent: event.type
-            } ), settings.parentWindowOrigin );
-        } catch ( error ) {
-            console.error( error );
+    window.onbeforeunload = function() {
+        if ( Object.keys( fieldSubmissionQueue.get() ).length > 0 ) {
+            return 'Any unsaved data will be lost';
         }
-    }
+    };
 }
 
 module.exports = {
