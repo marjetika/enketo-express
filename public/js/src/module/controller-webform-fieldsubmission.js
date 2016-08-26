@@ -213,8 +213,7 @@ function _setEventHandlers( selector ) {
             fieldSubmissionQueue.addRepeatRemoval( updated.xmlFragment, instanceId, deprecatedId );
             fieldSubmissionQueue.submitAll();
         } else if ( updated.fullPath && typeof updated.validCheck !== 'undefined' && updated.requiredCheck !== 'undefined' ) {
-            // TODO this is asynchronous! So when complete() triggers a beforesave event, this fieldsubmission occurs too late!
-
+            // This is asynchronous! So when complete() triggers a beforesave event, it will check ongoingUpdates first.
             update = updated.requiredCheck
                 .then( function( passed ) {
                     if ( passed ) {
@@ -241,9 +240,15 @@ function _setEventHandlers( selector ) {
     } );
 
     $( 'button#close-form' ).click( function() {
-        console.log( 'clicked close-form' );
-        // TODO: change button state?
-        return _close();
+        var $button = $( this ).btnBusyState( true );
+        _close()
+            .catch( function( e ) {
+
+            } )
+            .then( function() {
+                $button.btnBusyState( false );
+            } );
+        return false;
     } );
 
     $( 'button#finish-form' ).click( function() {

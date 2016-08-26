@@ -28,16 +28,21 @@ var survey = {
 translator.init( survey )
     .then( connection.getFormParts )
     .then( function( formParts ) {
-        if ( survey.instanceId ) {
-            return connection.getExistingInstance( survey )
-                .then( function( instance ) {
-                    formParts.instance = instance;
-                    return formParts;
-                } );
-            // TODO: when loading /fs/edit for /fs/edit/i WITHOUT an instanceId, an error should be thrown
+        if ( location.pathname.indexOf( '/edit/' ) > -1 ) {
+            if ( survey.instanceId ) {
+                return connection.getExistingInstance( survey )
+                    .then( function( response ) {
+                        formParts.instance = response.instance;
+                        // TODO: this will fail massively if instanceID is not populated (will use POST instead of PUT). Maybe do a check?
+                        return formParts;
+                    } );
+            } else {
+                throw new Error( 'This URL is invalid' );
+            }
         } else {
             return formParts;
         }
+
     } )
     .then( function( formParts ) {
         if ( formParts.form && formParts.model ) {
