@@ -41,6 +41,14 @@ router
         req.webformType = 'edit';
         next();
     } )
+    .all( '*/single*', function( req, res, next ) {
+        req.webformType = 'single';
+        next();
+    } )
+    .all( '*/fieldsubmission*', function( req, res, next ) {
+        req.fieldSubmission = true;
+        next();
+    } )
     .all( '/survey/offline*', function( req, res, next ) {
         var error;
         if ( req.app.get( 'offline enabled' ) ) {
@@ -73,6 +81,12 @@ router
     .post( '/instance', cacheInstance )
     .post( '/instance/iframe', cacheInstance )
     .delete( '/instance', removeInstance )
+    .get( '/survey/single/fieldsubmission', getNewOrExistingSurvey )
+    .get( '/survey/single/fieldsubmission/iframe', getNewOrExistingSurvey )
+    .post( '/survey/single/fieldsubmission', getNewOrExistingSurvey )
+    .post( '/survey/single/fieldsubmission/iframe', getNewOrExistingSurvey )
+    .post( '/instance/fieldsubmission', cacheInstance )
+    .post( '/instance/fieldsubmission/iframe', cacheInstance )
     .all( '*', function( req, res, next ) {
         var error = new Error( 'Not allowed.' );
         error.status = 405;
@@ -335,11 +349,14 @@ function _generateWebformUrls( id, req ) {
     var obj = {};
     var IFRAMEPATH = 'i/';
     var OFFLINEPATH = 'x/';
+    var FSPATH = 'fs/';
+    var fsPart = ( req.fieldSubmission ) ? FSPATH : '';
     var iframePart = ( req.iframe ) ? IFRAMEPATH : '';
     var protocol = req.headers[ 'x-forwarded-proto' ] || req.protocol;
     var baseUrl = protocol + '://' + req.headers.host + req.app.get( 'base path' ) + '/';
     var idPartOnline = '::' + id;
     var idPartOffline = '#' + id;
+    var queryParts;
 
     req.webformType = req.webformType || 'default';
 
@@ -351,17 +368,28 @@ function _generateWebformUrls( id, req ) {
         case 'edit':
             // no defaults query parameter in edit view
             queryString = _generateQueryString( [ 'instance_id=' + req.body.instance_id, req.parentWindowOriginParam, req.returnQueryParam ] );
-            obj.edit_url = baseUrl + 'edit/' + iframePart + idPartOnline + queryString;
+            obj.edit_url = baseUrl + 'edit/' + fsPart + iframePart + idPartOnline + queryString;
+            break;
+        case 'single':
+            queryParts = [ req.defaultsQueryParam, req.returnQueryParam ];
+            if ( iframePart ) {
+                queryParts.push( req.parentWindowOrigin );
+            }
+            queryString = _generateQueryString( queryParts );
+            obj[ 'single' + ( fsPart ? '_fieldsubmission' : '' ) + ( iframePart ? '_iframe' : '' ) + '_url' ] = baseUrl +
+                'single/' + fsPart + iframePart + idPartOnline + queryString;
             break;
         case 'all':
             // non-iframe views
             queryString = _generateQueryString( [ req.defaultsQueryParam ] );
             obj.url = baseUrl + idPartOnline + queryString;
+            obj.single_fieldsubmission_url = baseUrl + FSPATH + idPartOnline + queryString;
             obj.offline_url = baseUrl + OFFLINEPATH + idPartOffline;
             obj.preview_url = baseUrl + 'preview/' + idPartOnline + queryString;
             // iframe views
             queryString = _generateQueryString( [ req.defaultsQueryParam, req.parentWindowOriginParam ] );
             obj.iframe_url = baseUrl + IFRAMEPATH + idPartOnline + queryString;
+            obj.single_fieldsubmission_iframe_url = baseUrl + FSPATH + IFRAMEPATH + idPartOnline + queryString;
             obj.preview_iframe_url = baseUrl + 'preview/' + IFRAMEPATH + idPartOnline + queryString;
             // rest
             obj.enketo_id = id;
