@@ -106,6 +106,10 @@ function _getSubmissionUrl( server ) {
     return ( server.lastIndexOf( '/' ) === server.length - 1 ) ? server + 'fieldsubmission' : server + '/fieldsubmission';
 }
 
+function _getSubmissionCompleteUrl( server ) {
+    return ( server.lastIndexOf( '/' ) === server.length - 1 ) ? server + 'fieldsubmission' : server + '/fieldsubmission/complete';
+}
+
 
 /*
 function _logSubmission( id, instanceId, deprecatedId ) {

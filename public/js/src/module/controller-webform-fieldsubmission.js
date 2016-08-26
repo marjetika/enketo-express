@@ -15,6 +15,7 @@ var $ = require( 'jquery' );
 var FieldSubmissionQueue = require( './field-submission-queue' );
 var fieldSubmissionQueue = new FieldSubmissionQueue();
 var rc = require( './controller-webform' );
+var DEFAULT_THANKS_URL = '/thanks';
 var ongoingUpdates = [];
 var form;
 var formSelector;
@@ -92,7 +93,6 @@ function _resetForm( confirmed ) {
 }
 
 function _close() {
-    var redirect = !settings.offline && settings.returnUrl;
     var msg = '';
     var tAlertCloseMsg = 'Submitting unsaved data...';
     var tAlertCloseHeading = 'Closing';
@@ -110,17 +110,11 @@ function _close() {
                 console.log( 'There are unsubmitted items in the queue!' );
                 gui.alert( 'Not all data has been submitted. If you continue this will be lost.', 'Warning', 'error' );
             } else {
-                if ( redirect ) {
-                    msg += t( 'alert.submissionsuccess.redirectmsg' );
-                    gui.alert( msg, t( 'alert.submissionsuccess.heading' ), 'success' );
-                    setTimeout( function() {
-                        location.href = decodeURIComponent( settings.returnUrl );
-                    }, 1000 );
-                } else {
-                    msg = ( msg.length > 0 ) ? msg : t( 'alert.submissionsuccess.msg' );
-                    gui.alert( msg, t( 'alert.submissionsuccess.heading' ), 'success' );
-                    _resetForm( true );
-                }
+                msg += t( 'alert.submissionsuccess.redirectmsg' );
+                gui.alert( msg, t( 'alert.submissionsuccess.heading' ), 'success' );
+                setTimeout( function() {
+                    location.href = decodeURIComponent( settings.returnUrl || DEFAULT_THANKS_URL );
+                }, 1000 );
             }
         } );
 }
@@ -129,7 +123,6 @@ function _close() {
  * Finishes a submission
  */
 function _complete( updated ) {
-    var redirect = !settings.offline && settings.returnUrl;
     var beforeMsg;
     var authLink;
     var instanceId;
@@ -138,7 +131,7 @@ function _complete( updated ) {
 
     form.getView().$.trigger( 'beforesave' );
 
-    beforeMsg = ( redirect ) ? t( 'alert.submission.redirectmsg' ) : '';
+    beforeMsg = t( 'alert.submission.redirectmsg' );
     authLink = '<a href="/login" target="_blank">' + t( 'here' ) + '</a>';
 
     gui.alert( beforeMsg +
@@ -165,17 +158,11 @@ function _complete( updated ) {
                 // this event is used in communicating back to iframe parent window
                 $( document ).trigger( 'submissionsuccess' );
 
-                if ( redirect ) {
-                    msg += t( 'alert.submissionsuccess.redirectmsg' );
-                    gui.alert( msg, t( 'alert.submissionsuccess.heading' ), 'success' );
-                    setTimeout( function() {
-                        location.href = decodeURIComponent( settings.returnUrl );
-                    }, 1500 );
-                } else {
-                    msg = ( msg.length > 0 ) ? msg : t( 'alert.submissionsuccess.msg' );
-                    gui.alert( msg, t( 'alert.submissionsuccess.heading' ), 'success' );
-                    _resetForm( true );
-                }
+                msg += t( 'alert.submissionsuccess.redirectmsg' );
+                gui.alert( msg, t( 'alert.submissionsuccess.heading' ), 'success' );
+                setTimeout( function() {
+                    location.href = decodeURIComponent( settings.returnUrl || DEFAULT_THANKS_URL );
+                }, 1500 );
             } else {
                 throw new Error( 'Failed to submit.' );
             }
