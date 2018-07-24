@@ -17,6 +17,6 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
       vb.customize ["modifyvm", :id, "--memory", "2024", "--cpus", 1]
   end
 
-  config.vm.provision :shell, :path => "setup/bootstrap.sh"
+  config.vm.provision :shell, :path => "setup/vagrant/bootstrap.sh"
 
 end
