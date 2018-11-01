@@ -5,6 +5,25 @@ _The modern [Enketo Smart Paper](https://enketo.org) web application._
 
 ### How to install a test/development server
 
+#### Manually on Mac:
+
+1. brew install nodejs       ### Install homebrew first if necessary
+1. brew install node@8
+1. brew unlink node &&  brew unlink node@8 && brew link --force --overwrite node@8
+2. brew install jsonlint
+2. npm update -g npm
+2. npm install -g grunt-cli
+2. brew install redis
+2. brew services start redis
+3. ###Install build-essential, curl and git with `(sudo) apt-get install build-essential git curl`
+4. Clone this repository
+5. Install dependencies with `npm install` from the project root
+5. npm audit fix
+5. npm install --save-dev grunt-karma@3.0.0
+5. npm install --save-dev gulp@4.0.0
+6. Create config/config.json to override values in the [default config](./config/default-config.json). Start with `cp config/default-config.json config/config.json`
+7. Build with `grunt` from the project root
+
 #### Manually:
 
 1. Install JS prerequisites: [Node.js](https://github.com/nodesource/distributions) (8.x LTS), [Grunt Client](http://gruntjs.com).
